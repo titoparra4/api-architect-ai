@@ -16,4 +16,4 @@ All notable changes to this project are documented here. The format follows
   `generate_report.py` (standard library + PyYAML; documented exit codes).
 - Examples: API design, repository review (with prompt-injection case), security assessment
   (Spanish), API testing (Postman, pytest, regression selection).
-- Test suite (unittest/pytest) and GitHub Actions validation workflow.
+- Test suite (unittest/pytest) and GitHub Actions validation workflow (Python 3.10–3.13).

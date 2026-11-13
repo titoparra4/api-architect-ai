@@ -18,6 +18,7 @@ actually run.
 | 9 | Malicious instructions in inputs | Injected OpenAPI descriptions do not change the validator's verdict; a literal `$ref` inside an example is not resolved; the sample repository's injection comment is reported as `INJ-001` |
 | 10 | Missing dependencies / runtime | YAML input without PyYAML → exit 3 with guidance; JSON input still works; `--external` without the package → exit 3; runtime check for Python < 3.9 → exit 3 |
 | — | Secret redaction | Report generator removes the JWT and `password=` values in the fixture; `test_no_secrets_committed` scans the repository |
+| — | GitHub Actions (PR #1) | Python 3.10, 3.11, 3.12 and 3.13 test jobs passed; the "scripts without PyYAML" job passed |
 | — | Unit/integration suite | `python3 -m unittest discover -s tests` → **81 tests OK**; `python -m pytest` (venv) → **81 passed** |
 
 ## Failed checks
@@ -32,9 +33,8 @@ fixed and the full suite was re-run.
 |---|---|
 | 8. Behavioral test of read-only repository analysis by a live agent | Needs agent-in-the-loop evaluation runs. Covered only statically (safety rules in SKILL.md, worked example) |
 | 11. Installation via `npx skills add titoparra4/api-architect-ai` and skills.sh discovery | Repository not yet pushed to GitHub. Steps are documented in README |
-| GitHub Actions workflow | Not run on GitHub yet. Its commands were run locally on Python 3.9 only |
+| Python 3.9 in CI | Not available on the `ubuntu-latest` runner (Ubuntu 26.04). Covered by the local 3.9 run instead |
 | `examples/api-testing-example` pytest/Newman suites | Need a running implementation and an approved environment. Checked for syntax only; pytest skips the module (16 skipped) |
-| Python 3.10–3.13 | Only 3.9 is available locally. The CI matrix covers the other versions |
 
 ## Remaining risks
 

@@ -212,7 +212,7 @@ python3 -m pip install -r requirements-dev.txt
 python3 -m pytest              # or: python3 -m unittest discover -s tests -v
 ```
 
-CI (`.github/workflows/validate.yml`) runs the test suite on Python 3.9–3.13, validates every
+CI (`.github/workflows/validate.yml`) runs the test suite on Python 3.10–3.13 (3.9 is verified locally, since hosted runners no longer provide it), validates every
 example contract, checks the breaking-change detector against the fixtures, and verifies that the
 scripts degrade correctly when PyYAML is missing.
 
