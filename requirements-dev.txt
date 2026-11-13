@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8.0,<9
+# Optional: full JSON Schema meta-validation via validate_openapi.py --external
+openapi-spec-validator>=0.7.1,<0.8

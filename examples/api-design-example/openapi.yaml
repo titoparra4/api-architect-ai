@@ -1,0 +1,558 @@
+openapi: 3.1.1
+info:
+  title: Insurance Policy Management API
+  version: 1.0.0
+  summary: Manage insurance policies for brokers and internal underwriting services.
+  description: |
+    Example contract produced by API Architect AI (Mode A) from the requirements in README.md.
+    Conventions: RFC 9457 Problem Details, RFC 3339 UTC timestamps, cursor pagination (max 100),
+    Idempotency-Key on POST, ETag/If-Match optimistic concurrency, tenant = broker organization
+    derived from the access token (never from the request).
+  contact:
+    name: Policy Platform Team
+    url: https://developer.example-insurer.com/support
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: https://api.example-insurer.com/v1
+    description: Production
+  - url: https://api.sandbox.example-insurer.com/v1
+    description: Sandbox
+tags:
+  - name: Policies
+    description: Policy lifecycle (draft, active, cancelled).
+  - name: Coverages
+    description: Coverages attached to a policy.
+security:
+  - oauth2: [policies:read]
+paths:
+  /policies:
+    get:
+      tags: [Policies]
+      operationId: listPolicies
+      summary: List policies of the caller's broker organization
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/PolicyStatus'
+        - name: holderCustomerId
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: sort
+          in: query
+          description: Allowed values only; '-' prefix for descending. Tiebreaker is id.
+          schema:
+            type: string
+            enum: [createdAt, -createdAt, effectiveDate, -effectiveDate]
+            default: -createdAt
+      responses:
+        '200':
+          description: A page of policies.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    post:
+      tags: [Policies]
+      operationId: createPolicy
+      summary: Create a draft policy
+      security:
+        - oauth2: [policies:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyCreate'
+            examples:
+              motor:
+                value:
+                  productCode: MOTOR-STD
+                  holder:
+                    customerId: CUS-000123
+                  effectiveDate: '2026-12-01'
+                  premium:
+                    amount: '540.00'
+                    currency: EUR
+      responses:
+        '201':
+          description: Draft policy created.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /policies/{policyId}:
+    parameters:
+      - $ref: '#/components/parameters/PolicyId'
+    get:
+      tags: [Policies]
+      operationId: getPolicy
+      summary: Get a policy
+      description: Returns 404 when the policy does not exist or belongs to another broker organization.
+      responses:
+        '200':
+          description: The policy.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Policies]
+      operationId: updateDraftPolicy
+      summary: Update a draft policy (JSON Merge Patch)
+      description: Only policies in DRAFT status can be modified; otherwise 409.
+      security:
+        - oauth2: [policies:write]
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/PolicyUpdate'
+      responses:
+        '200':
+          description: Updated policy.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /policies/{policyId}/activation:
+    parameters:
+      - $ref: '#/components/parameters/PolicyId'
+    post:
+      tags: [Policies]
+      operationId: activatePolicy
+      summary: Activate (bind) a draft policy
+      security:
+        - oauth2: [policies:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Policy is ACTIVE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+  /policies/{policyId}/cancellation:
+    parameters:
+      - $ref: '#/components/parameters/PolicyId'
+    post:
+      tags: [Policies]
+      operationId: cancelPolicy
+      summary: Cancel an active policy
+      security:
+        - oauth2: [policies:cancel]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancellationRequest'
+      responses:
+        '200':
+          description: Policy is CANCELLED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+  /policies/{policyId}/coverages:
+    parameters:
+      - $ref: '#/components/parameters/PolicyId'
+    get:
+      tags: [Coverages]
+      operationId: listPolicyCoverages
+      summary: List coverages of a policy
+      responses:
+        '200':
+          description: Coverages (bounded by product definition, max 50; not paginated).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    maxItems: 50
+                    items:
+                      $ref: '#/components/schemas/Coverage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: |
+        Access tokens are JWTs (RFC 9068) validated for signature (RS256/ES256 only), iss, aud
+        (https://api.example-insurer.com), exp and typ. The broker organization (tenant) comes
+        from the 'org_id' claim.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.example-insurer.com/oauth2/authorize
+          tokenUrl: https://auth.example-insurer.com/oauth2/token
+          scopes:
+            policies:read: Read policies of the caller's organization
+            policies:write: Create, modify and activate draft policies
+            policies:cancel: Cancel active policies
+        clientCredentials:
+          tokenUrl: https://auth.example-insurer.com/oauth2/token
+          scopes:
+            policies:read: Read policies
+            policies:write: Create and modify policies
+            policies:cancel: Cancel active policies
+  parameters:
+    PolicyId:
+      name: policyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+        maxLength: 512
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated UUID; retries with the same key and payload return the original result for 24 h.
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+        maxLength: 128
+  headers:
+    ETag:
+      schema:
+        type: string
+    RetryAfter:
+      schema:
+        type: integer
+        minimum: 0
+  schemas:
+    PolicyStatus:
+      type: string
+      enum: [DRAFT, ACTIVE, CANCELLED, EXPIRED]
+      description: Clients must tolerate unknown values added in later minor versions.
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: string
+          pattern: '^-?[0-9]{1,13}(\.[0-9]{2})?$'
+          description: Decimal amount as string (no binary floating point).
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 code.
+    HolderRef:
+      type: object
+      additionalProperties: false
+      required: [customerId]
+      properties:
+        customerId:
+          type: string
+          maxLength: 64
+    PolicyCreate:
+      type: object
+      additionalProperties: false
+      required: [productCode, holder, effectiveDate, premium]
+      properties:
+        productCode:
+          type: string
+          maxLength: 32
+        holder:
+          $ref: '#/components/schemas/HolderRef'
+        effectiveDate:
+          type: string
+          format: date
+        premium:
+          $ref: '#/components/schemas/Money'
+    PolicyUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        effectiveDate:
+          type: string
+          format: date
+        premium:
+          $ref: '#/components/schemas/Money'
+    CancellationRequest:
+      type: object
+      additionalProperties: false
+      required: [reason, effectiveDate]
+      properties:
+        reason:
+          type: string
+          enum: [CUSTOMER_REQUEST, NON_PAYMENT, FRAUD, OTHER]
+        effectiveDate:
+          type: string
+          format: date
+        comment:
+          type: string
+          maxLength: 1000
+    Policy:
+      type: object
+      required: [id, policyNumber, productCode, status, holder, effectiveDate, premium, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        policyNumber:
+          type: string
+          readOnly: true
+        productCode:
+          type: string
+        status:
+          $ref: '#/components/schemas/PolicyStatus'
+        holder:
+          $ref: '#/components/schemas/HolderRef'
+        effectiveDate:
+          type: string
+          format: date
+        expirationDate:
+          type: [string, 'null']
+          format: date
+        premium:
+          $ref: '#/components/schemas/Money'
+        cancellation:
+          oneOf:
+            - $ref: '#/components/schemas/CancellationRequest'
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+    Coverage:
+      type: object
+      required: [code, limit]
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+        limit:
+          $ref: '#/components/schemas/Money'
+        deductible:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+    PolicyPage:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Policy'
+        page:
+          type: object
+          required: [limit]
+          properties:
+            limit:
+              type: integer
+            nextCursor:
+              type: [string, 'null']
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        traceId:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              pointer:
+                type: string
+              code:
+                type: string
+              detail:
+                type: string
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing or invalid access token.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Missing scope.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Not found or owned by another organization.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Invalid state transition or idempotency key in use.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionFailed:
+      description: If-Match does not match the current ETag.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionRequired:
+      description: If-Match header missing.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableContent:
+      description: Business rule violation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

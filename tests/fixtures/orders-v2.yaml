@@ -1,0 +1,154 @@
+openapi: 3.1.1
+info:
+  title: Orders API
+  version: 2.0.0
+  description: Fixture used by tests/test_contract_comparison.py (proposed contract with deliberate breaking changes).
+servers:
+  - url: https://api.example.com/v1
+tags:
+  - name: Orders
+security:
+  - oauth2: [orders:read]
+paths:
+  /orders:
+    get:
+      tags: [Orders]
+      operationId: listOrders
+      summary: List orders
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [OPEN, SHIPPED] }
+        - name: region
+          in: query
+          required: true
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of orders
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderPage' }
+        '401':
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Orders]
+      operationId: createOrder
+      summary: Create order
+      security:
+        - oauth2: [orders:write, orders:admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '422':
+          $ref: '#/components/responses/Problem'
+  /orders/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Orders]
+      operationId: getOrder
+      summary: Get order
+      deprecated: true
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404':
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Orders]
+      operationId: updateOrder
+      summary: Update order
+      requestBody:
+        content:
+          application/merge-patch+json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Updated
+  /health:
+    get:
+      tags: [Orders]
+      operationId: health
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+        '503':
+          description: Unavailable
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.example.com/token
+          scopes:
+            orders:read: Read
+            orders:write: Write
+            orders:admin: Admin
+  responses:
+    Problem:
+      description: Error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+    OrderCreate:
+      type: object
+      required: [customerId, items, channel]
+      properties:
+        customerId: { type: string, maxLength: 32 }
+        channel: { type: string, enum: [WEB, MOBILE] }
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/OrderItem' }
+    OrderItem:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku: { type: string }
+        quantity: { type: integer, minimum: 1 }
+    Order:
+      type: object
+      required: [id, customerId, status]
+      properties:
+        id: { type: string, format: uuid }
+        customerId: { type: string }
+        status: { type: string, enum: [OPEN, SHIPPED, CANCELLED, RETURNED] }
+        total: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    OrderPage:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Order' }

@@ -1,0 +1,6 @@
+# Optional UI metadata for OpenAI Codex skill listings. The skill itself is defined by SKILL.md;
+# environments that do not read this file ignore it.
+interface:
+  display_name: "API Architect AI"
+  short_description: "Design, review, secure, score and test REST APIs with evidence-based findings"
+  default_prompt: "Review this API's architecture, security and OpenAPI contract, then give me a scorecard and prioritized recommendations."

@@ -1,0 +1,38 @@
+# Deliberately invalid contract used by tests/test_openapi_validation.py
+openapi: 3.1.0
+info:
+  title: Broken API
+paths:
+  /items/{itemId}:
+    get:
+      operationId: getItem
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Missing' }
+        '600':
+          description: Not a valid status code
+  /items:
+    get:
+      operationId: getItem
+      security:
+        - undefinedScheme: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema: { type: object }
+components:
+  schemas: {}

@@ -1,0 +1,397 @@
+# OpenAPI 3.1 starting template — API Architect AI
+# Replace every <...> placeholder value. Keep RFC 9457 Problem Details, bounded pagination,
+# explicit security and separate create/read schemas. Validate with:
+#   python3 scripts/validate_openapi.py assets/openapi-template.yaml
+openapi: 3.1.1
+info:
+  title: Example Resource API
+  version: 1.0.0
+  summary: Template contract for a resource-oriented REST API.
+  description: |
+    Replace this text with the API purpose, consumers and conventions:
+    - Errors use RFC 9457 Problem Details (application/problem+json).
+    - Timestamps are RFC 3339 in UTC.
+    - Collections use cursor pagination (limit max 100).
+    - POST operations accept an Idempotency-Key header.
+  contact:
+    name: API Owner Team
+    url: https://example.com/api-support
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: https://api.example.com/v1
+    description: Production
+  - url: https://api.staging.example.com/v1
+    description: Staging
+tags:
+  - name: Resources
+    description: Manage resources.
+security:
+  - oauth2: [resources:read]
+paths:
+  /resources:
+    get:
+      tags: [Resources]
+      operationId: listResources
+      summary: List resources
+      description: Returns resources visible to the caller's tenant, newest first.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          description: Filter by status.
+          schema:
+            $ref: '#/components/schemas/ResourceStatus'
+      responses:
+        '200':
+          description: A page of resources.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    post:
+      tags: [Resources]
+      operationId: createResource
+      summary: Create a resource
+      security:
+        - oauth2: [resources:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceCreate'
+            examples:
+              basic:
+                value:
+                  name: Example resource
+                  description: Created from the template
+      responses:
+        '201':
+          description: Created.
+          headers:
+            Location:
+              description: URI of the created resource.
+              schema:
+                type: string
+                format: uri-reference
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /resources/{resourceId}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [Resources]
+      operationId: getResource
+      summary: Get a resource
+      responses:
+        '200':
+          description: The resource.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Resources]
+      operationId: updateResource
+      summary: Partially update a resource (JSON Merge Patch)
+      security:
+        - oauth2: [resources:write]
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          description: ETag of the representation being modified (optimistic concurrency).
+          schema:
+            type: string
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/ResourceUpdate'
+      responses:
+        '200':
+          description: Updated resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+    delete:
+      tags: [Resources]
+      operationId: deleteResource
+      summary: Delete a resource
+      security:
+        - oauth2: [resources:write]
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: OAuth 2.0 access tokens (JWT, validated for iss, aud, exp, alg).
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.example.com/oauth2/authorize
+          tokenUrl: https://auth.example.com/oauth2/token
+          scopes:
+            resources:read: Read resources
+            resources:write: Create, modify and delete resources
+        clientCredentials:
+          tokenUrl: https://auth.example.com/oauth2/token
+          scopes:
+            resources:read: Read resources
+            resources:write: Create, modify and delete resources
+  parameters:
+    ResourceId:
+      name: resourceId
+      in: path
+      required: true
+      description: Opaque resource identifier.
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      description: Maximum number of items to return.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor returned as page.nextCursor.
+      schema:
+        type: string
+        maxLength: 512
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Unique key (e.g. UUID) making POST retries safe for 24 hours.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+  headers:
+    ETag:
+      description: Entity tag for optimistic concurrency.
+      schema:
+        type: string
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      schema:
+        type: integer
+        minimum: 0
+  schemas:
+    ResourceStatus:
+      type: string
+      enum: [ACTIVE, ARCHIVED]
+      description: Clients must tolerate unknown values added in future minor versions.
+    ResourceCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: [string, 'null']
+          maxLength: 2000
+    ResourceUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: [string, 'null']
+          maxLength: 2000
+    Resource:
+      type: object
+      required: [id, name, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        status:
+          $ref: '#/components/schemas/ResourceStatus'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+    PageInfo:
+      type: object
+      required: [limit]
+      properties:
+        limit:
+          type: integer
+        nextCursor:
+          type: [string, 'null']
+    ResourcePage:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        traceId:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              pointer:
+                type: string
+              code:
+                type: string
+              detail:
+                type: string
+      additionalProperties: true
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing or invalid credentials.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Authenticated but not allowed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Not found or not visible to the caller.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Conflict with current state or idempotency key reuse in progress.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionFailed:
+      description: If-Match does not match the current ETag.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableContent:
+      description: Semantic validation or business rule failure.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

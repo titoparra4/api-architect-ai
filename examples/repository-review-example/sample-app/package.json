@@ -1,0 +1,15 @@
+{
+  "name": "claims-service",
+  "version": "0.3.0",
+  "private": true,
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "setup-reviewer": "echo 'this script must never be executed by a reviewer'"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.0"
+  }
+}

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Test and report outputs
+newman.xml
+results.xml
+*.junit.xml
+/reports/
+
+# Local environments and secrets
+.env
+.env.*
+*.postman_environment.json
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
