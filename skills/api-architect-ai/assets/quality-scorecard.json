@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "_comment": "Template for scripts/calculate_score.py and scripts/generate_report.py. Replace example values. score must be null when evidence_coverage is 'insufficient' or applicable is false. Severity: Critical|High|Medium|Low|Informational. Confidence: High|Medium|Low. Status: Confirmed|Suspected|Requires validation|Resolved.",
+  "assessment": {
+    "title": "API Architecture Assessment",
+    "system": "Example Policy API",
+    "date": "2026-11-13",
+    "language": "en",
+    "modes": ["B", "C"],
+    "scope": "Repository example-policy-api at commit <sha>; openapi.yaml v1.2.0",
+    "evidence": [
+      { "item": "OpenAPI contract", "type": "contract", "location": "openapi.yaml", "depth": "full" },
+      { "item": "Route handlers", "type": "code", "location": "src/routes/", "depth": "sampled" }
+    ],
+    "executive_summary": "",
+    "architecture_overview": "",
+    "security_assessment": "",
+    "scalability_assessment": "",
+    "interoperability_assessment": "",
+    "contract_review": "",
+    "testing_strategy": ""
+  },
+  "dimensions": [
+    {
+      "id": "api_design",
+      "applicable": true,
+      "evidence_coverage": "sufficient",
+      "score": 72,
+      "confidence": "High",
+      "rationale": "Start 80 (consistent naming, pagination present); -7 DES-001 mixed error formats; -1 rounding.",
+      "findings": ["DES-001"],
+      "risks": ["Client error handling diverges across endpoints"],
+      "recommendations": ["REC-002"],
+      "verification_actions": ["Contract test asserting application/problem+json on all 4xx/5xx"]
+    },
+    {
+      "id": "architecture",
+      "applicable": true,
+      "evidence_coverage": "partial",
+      "score": 70,
+      "confidence": "Medium",
+      "rationale": "",
+      "findings": [],
+      "risks": [],
+      "recommendations": [],
+      "verification_actions": []
+    },
+    {
+      "id": "security",
+      "applicable": true,
+      "evidence_coverage": "sufficient",
+      "score": 45,
+      "confidence": "High",
+      "rationale": "Start 75; -15 SEC-001 (BOLA); -15 SEC-002 (JWT audience not validated).",
+      "findings": ["SEC-001", "SEC-002"],
+      "risks": ["Cross-tenant data disclosure"],
+      "recommendations": ["REC-001"],
+      "verification_actions": ["Cross-tenant access regression test"]
+    },
+    {
+      "id": "scalability",
+      "applicable": true,
+      "evidence_coverage": "insufficient",
+      "score": null,
+      "confidence": "Low",
+      "rationale": "No metrics, load tests or infrastructure configuration provided.",
+      "findings": [],
+      "risks": [],
+      "recommendations": [],
+      "verification_actions": ["Provide APM metrics or run a staging load test"]
+    },
+    {
+      "id": "interoperability",
+      "applicable": true,
+      "evidence_coverage": "partial",
+      "score": 78,
+      "confidence": "Medium",
+      "rationale": "",
+      "findings": [],
+      "risks": [],
+      "recommendations": [],
+      "verification_actions": []
+    },
+    {
+      "id": "testing",
+      "applicable": true,
+      "evidence_coverage": "sufficient",
+      "score": 55,
+      "confidence": "High",
+      "rationale": "",
+      "findings": [],
+      "risks": [],
+      "recommendations": [],
+      "verification_actions": []
+    },
+    {
+      "id": "documentation",
+      "applicable": true,
+      "evidence_coverage": "sufficient",
+      "score": 80,
+      "confidence": "High",
+      "rationale": "",
+      "findings": [],
+      "risks": [],
+      "recommendations": [],
+      "verification_actions": []
+    }
+  ],
+  "findings": [
+    {
+      "id": "SEC-001",
+      "category": "Authorization — OWASP API1:2023 BOLA",
+      "title": "Policy retrieval does not verify tenant ownership",
+      "severity": "High",
+      "confidence": "High",
+      "location": "src/routes/policies.js:42",
+      "evidence": "Handler returns repository.findById(req.params.id) without comparing tenantId to the token claim.",
+      "technical_impact": "Any authenticated user can read policies of other tenants.",
+      "business_impact": "Disclosure of customer PII across brokers; regulatory exposure.",
+      "recommended_solution": "Scope the query by the tenant from the verified token and return 404 when not found.",
+      "alternative_solutions": "Central policy middleware or database row-level security.",
+      "effort": "Small",
+      "verification_method": "Automated cross-tenant access test expecting 404.",
+      "status": "Confirmed"
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "REC-001",
+      "title": "Enforce tenant-scoped data access",
+      "findings": ["SEC-001"],
+      "priority": "Now",
+      "effort": "Small",
+      "acceptance_criteria": "100% of object-by-ID operations scope queries by tenant; cross-tenant regression tests pass in CI.",
+      "validation": "Security regression suite in CI"
+    }
+  ],
+  "adrs": [
+    { "id": "ADR-001", "title": "Centralize authorization in a policy layer", "status": "Proposed" }
+  ],
+  "roadmap": [
+    { "horizon": "Now", "items": ["REC-001"], "exit_criteria": "Cross-tenant tests green" }
+  ],
+  "acceptance_criteria": [
+    { "criterion": "Problem Details on all errors", "measure": "% of 4xx/5xx with application/problem+json", "method": "Contract tests", "target": "100%" }
+  ],
+  "limitations": ["No runtime metrics available; scalability not evaluated."],
+  "assumptions": ["ASM-001: All consumers are authenticated partners."],
+  "not_executed": ["Dynamic security tests (no approved environment provided)."]
+}

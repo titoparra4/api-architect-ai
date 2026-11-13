@@ -1,0 +1,138 @@
+{
+  "info": {
+    "name": "Insurance Policy API — regression (API Architect AI example)",
+    "description": "Run with Newman against an approved environment only. Variables: baseUrl, tokenOrgA, tokenOrgB. Tokens must come from a Newman environment file or CI secrets, never committed.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://api.sandbox.example-insurer.com/v1" },
+    { "key": "policyId", "value": "" },
+    { "key": "idempotencyKey", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Create draft policy",
+      "event": [
+        { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+          "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+        ] } },
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('201 with Location, ETag and DRAFT status', () => {",
+          "  pm.response.to.have.status(201);",
+          "  const body = pm.response.json();",
+          "  pm.expect(pm.response.headers.get('Location')).to.match(new RegExp('/policies/' + body.id + '$'));",
+          "  pm.expect(pm.response.headers.get('ETag')).to.be.a('string').and.not.empty;",
+          "  pm.expect(body.status).to.eql('DRAFT');",
+          "  pm.expect(body.premium).to.eql({ amount: '540.00', currency: 'EUR' });",
+          "  pm.expect(body.createdAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/);",
+          "  pm.collectionVariables.set('policyId', body.id);",
+          "});"
+        ] } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{tokenOrgA}}" },
+          { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/policies",
+        "body": { "mode": "raw", "raw": "{\n  \"productCode\": \"MOTOR-STD\",\n  \"holder\": { \"customerId\": \"CUS-TEST-0001\" },\n  \"effectiveDate\": \"2030-01-01\",\n  \"premium\": { \"amount\": \"540.00\", \"currency\": \"EUR\" }\n}" }
+      }
+    },
+    {
+      "name": "Retry with same Idempotency-Key returns same policy",
+      "event": [
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('same resource returned, no duplicate', () => {",
+          "  pm.response.to.have.status(201);",
+          "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('policyId'));",
+          "});"
+        ] } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{tokenOrgA}}" },
+          { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/policies",
+        "body": { "mode": "raw", "raw": "{\n  \"productCode\": \"MOTOR-STD\",\n  \"holder\": { \"customerId\": \"CUS-TEST-0001\" },\n  \"effectiveDate\": \"2030-01-01\",\n  \"premium\": { \"amount\": \"540.00\", \"currency\": \"EUR\" }\n}" }
+      }
+    },
+    {
+      "name": "Other organization cannot read the policy (BOLA)",
+      "event": [
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('404 problem details without policy data', () => {",
+          "  pm.response.to.have.status(404);",
+          "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+          "  const body = pm.response.json();",
+          "  pm.expect(body.status).to.eql(404);",
+          "  pm.expect(body).to.not.have.property('holder');",
+          "  pm.expect(body).to.not.have.property('premium');",
+          "});"
+        ] } }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{tokenOrgB}}" } ],
+        "url": "{{baseUrl}}/policies/{{policyId}}"
+      }
+    },
+    {
+      "name": "Read-only fields rejected on create (mass assignment)",
+      "event": [
+        { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+          "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+        ] } },
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('400 problem details', () => {",
+          "  pm.response.to.have.status(400);",
+          "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+          "  pm.expect(pm.response.text()).to.not.match(/stack|exception/i);",
+          "});"
+        ] } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{tokenOrgA}}" },
+          { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/policies",
+        "body": { "mode": "raw", "raw": "{\n  \"productCode\": \"MOTOR-STD\",\n  \"status\": \"ACTIVE\",\n  \"holder\": { \"customerId\": \"CUS-TEST-0002\" },\n  \"effectiveDate\": \"2030-01-01\",\n  \"premium\": { \"amount\": \"540.00\", \"currency\": \"EUR\" }\n}" }
+      }
+    },
+    {
+      "name": "limit above maximum is rejected",
+      "event": [
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('400 for limit=101', () => {",
+          "  pm.response.to.have.status(400);",
+          "  pm.expect(pm.response.json().status).to.eql(400);",
+          "});"
+        ] } }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{tokenOrgA}}" } ],
+        "url": "{{baseUrl}}/policies?limit=101"
+      }
+    },
+    {
+      "name": "Missing token is rejected",
+      "event": [
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('401 with WWW-Authenticate', () => {",
+          "  pm.response.to.have.status(401);",
+          "  pm.expect(pm.response.headers.get('WWW-Authenticate')).to.include('Bearer');",
+          "});"
+        ] } }
+      ],
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/policies" }
+    }
+  ]
+}

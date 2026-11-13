@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "assessment": { "title": "Incomplete evidence fixture", "system": "Fixture", "date": "2026-11-13" },
+  "dimensions": [
+    { "id": "api_design", "evidence_coverage": "partial", "score": 70, "confidence": "High" },
+    { "id": "security", "evidence_coverage": "insufficient", "score": 90, "confidence": "Low" },
+    { "id": "documentation", "evidence_coverage": "sufficient", "score": 90, "confidence": "High" }
+  ],
+  "findings": [
+    { "id": "SEC-001", "category": "Authentication", "title": "JWT signature not verified", "severity": "Critical",
+      "status": "Suspected", "evidence": "jwt.decode(token, verify=False) with header Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlc2lnbmF0dXJl and password=SuperSecret123" },
+    { "id": "SEC-002", "category": "Security", "title": "Resolved critical issue", "severity": "Critical", "status": "Resolved" }
+  ]
+}

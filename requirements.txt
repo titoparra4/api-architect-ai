@@ -1,0 +1,2 @@
+# Runtime dependency of the bundled scripts (only needed for YAML input).
+PyYAML>=6.0.1,<7
